@@ -1,4 +1,3 @@
-
 //EBNF grammar :
 //<digit> = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 //<number> = { <digit> }
@@ -63,10 +62,10 @@ int key_word_func_by(integer) (char* stream, int word_lenght) {
 int key_word_func_by(string) (char* stream, int word_lenght) {
 	if (*stream != '"')
 		return 0;
-	if (*(stream + word_lenght -1) != '"')
+	if (*(stream + word_lenght) != '"')
 		return 0;
 
-	return word_lenght;
+	return word_lenght + 1;
 }
 
 struct token_node* make_token_node() {
@@ -98,13 +97,14 @@ char* get_word(char* stream) {
 
 	bool is_string = false;
 	for (; *stream; stream++) {
-		if (*stream == '"') {
+		if (not is_string and *stream == '"') {
 			is_string = true;
 			continue;
 		}
 
 		if (is_string and *stream == '"') {
 			is_string = false;
+			return stream;
 		}
 
 		if ((not is_string and isspace(*stream)) or *stream == ')' or *stream == '(') {
@@ -139,6 +139,7 @@ struct token_node* tokenizer(struct input_tokenizer* input) {
 		input->stream = stream + stream_offset; // offset input stream
 
 		if (key_word.type == tt_rbo) {
+			node->my_token.type = tt_expression;
 			node->body = tokenizer(input);
 			node->next_node = tokenizer(input);
 			return node;
@@ -160,4 +161,17 @@ struct token_node* tokenizer(struct input_tokenizer* input) {
 
 	printf("Error identificator: %.*s", word_lenght, stream);
 	return NULL;
+}
+
+size_t expression_length(struct token_node* expression) {
+	if (not expression) {
+		return 0;
+	}
+
+	struct token_node* iter = expression;
+	size_t length = 1;
+	for (; iter->next_node; length++) {
+		iter = iter->next_node;
+	}
+	return length;
 }
