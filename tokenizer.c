@@ -15,57 +15,68 @@
 
 #define array_size(x) sizeof(x)/sizeof(x[0])
 
-int key_word_by_name(char* stream, int word_lenght, char* name) {
-	int string_size = strlen(name);
+static char* make_string(const char* word, int length) {
+	if (length < 1) {
+		return NULL;
+	}
+	char* str = calloc(length + 1, sizeof(char));
+	strncpy(str, word, length);
+	str[length + 1] = "";
+	return str;
+}
+
+struct token key_word_by_name(char* word, int word_lenght, char* token_name, enum token_type type) {
+	int string_size = strlen(token_name);
 	if (string_size != word_lenght)
-		return 0;
-	if (memcmp(name, stream, string_size) != 0)
-		return 0;
-	return string_size;
+		return (struct token) {.type = tt_none};
+	if (memcmp(token_name, word, string_size) != 0)
+		return (struct token) { .type = tt_none };
+	return (struct token) { .type = type };
 }
 
 #define key_word_func_by(fname) key_word_##fname
-#define make_key_word_func(name, str_name) int key_word_##name(char* stream, int word_lenght){ \
-return key_word_by_name(stream, word_lenght, str_name);\
+#define make_key_word_func(name, token_name, token_type) struct token key_word_##name(char* word, int word_lenght, enum token_type type){ \
+return key_word_by_name(word, word_lenght, token_name, token_type);\
 }\
 
-make_key_word_func(define, "define");
-make_key_word_func(rbo, "(");
-make_key_word_func(rbc, ")");
-make_key_word_func(lambda, "lambda");
+make_key_word_func(define, "define", tt_define);
+make_key_word_func(rbo, "(", tt_rbo);
+make_key_word_func(rbc, ")", tt_rbc);
+make_key_word_func(lambda, "lambda", tt_lambda);
+make_key_word_func(begin, "begin", tt_begin);
 
-int key_word_func_by(identifier) (char* stream, int word_lenght) {
+struct token key_word_func_by(identifier) (char* stream, int word_lenght) {
 	if (strchr(stream, ',') or strchr(stream, '\\')) {
-		return 0;
+		return (struct token) { .type = tt_none };
 	}
-	return word_lenght;
+	return (struct token) { .type = tt_ident, .name = make_string(stream, word_lenght) };
 }
 
-int key_word_func_by(real) (char* stream, int word_lenght) {
+struct token key_word_func_by(real) (char* stream, int word_lenght) {
 	char* enp_pos;
-	strtof(stream, &enp_pos);
+	float value = strtof(stream, &enp_pos);
 	int real_lenght = enp_pos - stream;
 	if (real_lenght == word_lenght)
-		return word_lenght;
-	return 0;
+		return (struct token) { .type = tt_real, .real = value};
+	return (struct token) { .type = tt_none };
 }
 
-int key_word_func_by(integer) (char* stream, int word_lenght) {
+struct token key_word_func_by(integer) (char* stream, int word_lenght) {
 	char* enp_pos;
-	strtol(stream, &enp_pos, 10);
+	int value = strtol(stream, &enp_pos, 10);
 	int integer_lenght = enp_pos - stream;
 	if (integer_lenght == word_lenght)
-		return word_lenght;
-	return 0;
+		return (struct token) { .type = tt_integer, .integer = value };
+	return (struct token) { .type = tt_none };
 }
 
-int key_word_func_by(string) (char* stream, int word_lenght) {
-	if (*stream != '"')
-		return 0;
-	if (*(stream + word_lenght) != '"')
-		return 0;
+struct token key_word_func_by(string) (char* stream, int word_lenght) {
+	if (stream[0] != '"')
+		return (struct token) { .type = tt_none };
+	if (stream[word_lenght - 1] != '"')
+		return (struct token) { .type = tt_none };
 
-	return word_lenght + 1;
+	return (struct token) { .type = tt_string, .string = make_string(stream+1, word_lenght-2) };
 }
 
 struct token_node* make_token_node() {
@@ -77,12 +88,13 @@ struct token_node* make_token_node() {
 
 struct token_type_pair {
 	enum token_type type;
-	int (*func_cmp)(char*, int);
+	struct token (*func_cmp)(char*, int);
 };
 
 struct token_type_pair key_words [] = {
 	{tt_define, key_word_func_by(define)},
 	{tt_lambda, key_word_func_by(lambda)},
+	{tt_begin, key_word_func_by(begin)},
 	{tt_rbo, key_word_func_by(rbo)},
 	{tt_rbc, key_word_func_by(rbc)},
 	{tt_integer, key_word_func_by(integer)},
@@ -91,7 +103,7 @@ struct token_type_pair key_words [] = {
 	{tt_ident, key_word_func_by(identifier)},
 };
 
-char* get_word(char* stream) {
+static char* get_word(char* stream) {
 	if (*stream == ')' or *stream == '(')
 		return ++stream;
 
@@ -104,6 +116,7 @@ char* get_word(char* stream) {
 
 		if (is_string and *stream == '"') {
 			is_string = false;
+			stream++;
 			return stream;
 		}
 
@@ -131,12 +144,12 @@ struct token_node* tokenizer(struct input_tokenizer* input) {
 
 	for (int key = 0; key < array_size(key_words); key++) {
 		const struct token_type_pair key_word = key_words[key];
-		const int stream_offset = key_word.func_cmp(stream, word_lenght);
+		struct token new_token = key_word.func_cmp(stream, word_lenght);
 		
-		if (stream_offset == 0)
+		if (new_token.type == tt_none)
 			continue;
 
-		input->stream = stream + stream_offset; // offset input stream
+		input->stream = stream + word_lenght; // offset input stream
 
 		if (key_word.type == tt_rbo) {
 			node->my_token.type = tt_expression;
@@ -149,12 +162,7 @@ struct token_node* tokenizer(struct input_tokenizer* input) {
 			return NULL;
 		}
 
-		node->my_token = (struct token) {
-			.type = key_word.type,
-			.word_begin = stream,
-			.word_end = stream + stream_offset
-		};
-
+		node->my_token = new_token;
 		node->next_node = tokenizer(input);
 		return node;
 	}
@@ -169,6 +177,19 @@ size_t expression_length(struct token_node* expression) {
 	}
 
 	struct token_node* iter = expression;
+	size_t length = 1;
+	for (; iter->next_node; length++) {
+		iter = iter->next_node;
+	}
+	return length;
+}
+
+size_t expression_body_length(struct token_node* expression) {
+	if (not expression) {
+		return 0;
+	}
+
+	struct token_node* iter = expression->body;
 	size_t length = 1;
 	for (; iter->next_node; length++) {
 		iter = iter->next_node;

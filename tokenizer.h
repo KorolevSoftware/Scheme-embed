@@ -4,6 +4,7 @@ enum token_type {
 	tt_none,
 	tt_expression,
 	tt_define,
+	tt_begin,
 	tt_integer,
 	tt_real, // float
 	tt_rbo, // (
@@ -16,8 +17,15 @@ enum token_type {
 
 struct token {
 	enum token_type type;
-	const char* word_begin;
-	const char* word_end;
+	union {
+		float real;
+		int integer;
+
+	};
+	union {
+		char* string;
+		char* name;
+	};
 };
 
 struct token_node {
@@ -32,3 +40,5 @@ struct input_tokenizer {
 
 struct token_node* tokenizer(struct input_tokenizer* input);
 size_t expression_length(struct token_node* expression);
+size_t expression_body_length(struct token_node* expression);
+struct token_node* make_token_node();
