@@ -1,4 +1,4 @@
-#include "scheme.h"
+#include "scheme/scheme.h"
 
 const char* program1 = "(define (dd x) (+ x x))";
 const char* program2 = "(define aa (+ 11 55))";
@@ -10,7 +10,7 @@ const char* program7 = "(define ss 10)";
 const char* program8 = "(print ss)";
 //const char* program9 = "(define ee 123) (print ee)";
 
-const char* program9 = "(define (ff) (begin (print 11) (print 22) (print (+ 6 6)) (10))) (print (ff))";
+const char* program9 = "(define ss 10) (define (ff) (begin (print ss) (print 22) (print (+ 6 6)) (10))) (print (ff) \"hello\")";
 
 int main(int argc, char* args[]) {
 	//struct token_node* programC1 = compile(program1);
